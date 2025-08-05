@@ -66,7 +66,7 @@ if (process.env.NODE_ENV !== "production") {
 // Middleware
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL,
+    origin: process.env.FRONTEND_URL || "http://localhost:3000",
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -98,8 +98,23 @@ app.use("/api/freelancer", freelancerRoutes);
 app.use("/api/chatbot", chatbotRoutes);
 app.use("/api/charts", chartRoutes);
 app.use("/api/push", pushNotificationRoutes); // Use chart routes
+// Health check endpoint
 app.get("/", (req, res) => {
-  res.json({ message: "Welcome to the application." });
+  res.json({ 
+    message: "AVNS Backend API is running successfully",
+    status: "healthy",
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV || "development"
+  });
+});
+
+// Additional health check endpoint
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "OK",
+    uptime: process.uptime(),
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Error handling middleware

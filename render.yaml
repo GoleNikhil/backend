@@ -1,0 +1,48 @@
+services:
+  # PostgreSQL Database
+  - type: pserv
+    name: avns-database
+    plan: free
+    databaseName: AVNSDB
+    user: avns_user
+    region: oregon
+
+  # Web Service (Backend API)
+  - type: web
+    name: avns-backend
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: avns-database
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://your-frontend-app.onrender.com
+      - key: BACKEND_BASE_URL
+        value: https://avns-backend.onrender.com
+    # Environment variables that need to be set manually in Render dashboard:
+    # - CLOUDINARY_CLOUD_NAME
+    # - CLOUDINARY_API_KEY  
+    # - CLOUDINARY_API_SECRET
+    # - RAZORPAY_KEY_ID
+    # - RAZORPAY_KEY_SECRET
+    # - GOOGLE_API_KEY
+    # - EMAIL_USER
+    # - EMAIL_PASSWORD
+    # - VAPID_PUBLIC_KEY
+    # - VAPID_PRIVATE_KEY
+    # - SUPER_ADMIN_EMAIL
+    # - SUPER_ADMIN_PASSWORD
+    # - SUPER_ADMIN_PHONE
+    # - SUPER_ADMIN_ADDRESS
