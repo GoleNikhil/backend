@@ -3,8 +3,6 @@ services:
   - type: pserv
     name: avns-database
     plan: free
-    databaseName: AVNSDB
-    user: avns_user
     region: oregon
 
   # Web Service (Backend API)
