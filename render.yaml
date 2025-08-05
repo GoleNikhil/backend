@@ -1,10 +1,4 @@
 services:
-  # PostgreSQL Database
-  - type: pserv
-    name: avns-database
-    plan: free
-    region: oregon
-
   # Web Service (Backend API)
   - type: web
     name: avns-backend
@@ -44,3 +38,11 @@ services:
     # - SUPER_ADMIN_PASSWORD
     # - SUPER_ADMIN_PHONE
     # - SUPER_ADMIN_ADDRESS
+
+# List all PostgreSQL databases here
+databases:
+  - name: avns-database
+    databaseName: AVNSDB  # Optional (Render may add a suffix)
+    user: avns_user       # Optional
+    plan: free
+    region: oregon
