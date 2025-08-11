@@ -822,24 +822,28 @@ const userController = {
   },
   getUserStats: async (req, res) => {
     try {
-      const stats = await db.users.findAll({
+      // First get counts grouped by role_id
+      const groupedCounts = await db.users.findAll({
         attributes: [
           "role_id",
           [db.sequelize.fn("COUNT", db.sequelize.col("user_id")), "count"],
         ],
-        include: [
-          {
-            model: db.roles,
-            attributes: ["role_name"],
-          },
-        ],
-        group: ["role_id", "Role.role_id", "Role.role_name"],
+        group: ["role_id"],
+        raw: true,
       });
 
-      const formattedStats = stats.map((stat) => ({
-        role_id: stat.dataValues.role_id,
-        role_name: stat.dataValues.Role.role_name,
-        count: parseInt(stat.dataValues.count),
+      // Fetch role names
+      const roles = await db.roles.findAll({
+        attributes: ["role_id", "role_name"],
+        raw: true,
+      });
+
+      const roleIdToName = new Map(roles.map((r) => [r.role_id, r.role_name]));
+
+      const formattedStats = groupedCounts.map((row) => ({
+        role_id: row.role_id,
+        role_name: roleIdToName.get(row.role_id) || "unknown",
+        count: parseInt(row.count, 10) || 0,
       }));
 
       res.json(formattedStats);

@@ -8,41 +8,53 @@ const Product = db.products; // lowercase plural as defined in index.js
 const User = db.users; // lowercase plural as defined in index.js
 const Quotation = db.quotations; // lowercase plural as defined in index.js
 
-// Get stats for admin dashboard
+// Get stats for admin dashboard (resilient defaults)
 exports.getDashboardStats = async (req, res) => {
-  try {
-    // Total counts
-    const totalOrders = (await Order.count()) || 0;
-    const totalTickets = (await Ticket.count()) || 0;
-    const totalProducts = (await Product.count()) || 0;
+  let totalOrders = 0;
+  let totalTickets = 0;
+  let totalProducts = 0;
+  let totalRevenue = 0;
+  let userCountsByRole = [];
 
-    // Total revenue
-    const totalRevenue =
+  try {
+    totalOrders = (await Order.count()) || 0;
+  } catch (e) {
+    console.error("Dashboard stats: Order.count failed:", e.message);
+  }
+  try {
+    totalTickets = (await Ticket.count()) || 0;
+  } catch (e) {
+    console.error("Dashboard stats: Ticket.count failed:", e.message);
+  }
+  try {
+    totalProducts = (await Product.count()) || 0;
+  } catch (e) {
+    console.error("Dashboard stats: Product.count failed:", e.message);
+  }
+  try {
+    totalRevenue =
       (await Order.sum("total_amount", {
         where: { status: { [Op.ne]: "cancelled" } },
       })) || 0;
-
-    // Users count by role
-    const userCountsByRole =
-      (await User.count({
-        attributes: ["role_id"],
-        group: ["role_id"],
-      })) || [];
-
-    res.json({
-      totalOrders,
-      totalTickets,
-      totalProducts,
-      totalRevenue,
-      userCountsByRole,
-    });
-  } catch (error) {
-    console.error("Error fetching dashboard stats:", error);
-    res.status(500).json({
-      message: "Error fetching dashboard stats",
-      error: error.message,
-    });
+  } catch (e) {
+    console.error("Dashboard stats: Order.sum failed:", e.message);
   }
+  try {
+    userCountsByRole =
+      (await User.count({ attributes: ["role_id"], group: ["role_id"] })) || [];
+  } catch (e) {
+    console.error("Dashboard stats: User.count(group) failed:", e.message);
+    userCountsByRole = [];
+  }
+
+  // Always return 200 with whatever we could fetch
+  return res.json({
+    totalOrders,
+    totalTickets,
+    totalProducts,
+    totalRevenue,
+    userCountsByRole,
+  });
 };
 
 // Get ticket status distribution
@@ -50,18 +62,17 @@ exports.getTicketStats = async (req, res) => {
   try {
     const ticketStats = await Ticket.findAll({
       attributes: [
-        "ticket_status", // column name from your model
+        "ticket_status",
         [db.sequelize.fn("COUNT", db.sequelize.col("ticket_id")), "count"],
       ],
       group: ["ticket_status"],
+      raw: true,
     });
-
-    res.json(ticketStats);
+    return res.json(ticketStats);
   } catch (error) {
-    console.error("Error fetching ticket stats:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching ticket stats", error: error.message });
+    console.error("Error fetching ticket stats:", error.message);
+    // Return empty dataset instead of 500 to keep dashboard functional
+    return res.json([]);
   }
 };
 
@@ -74,14 +85,12 @@ exports.getOrderStats = async (req, res) => {
         [db.sequelize.fn("COUNT", db.sequelize.col("order_id")), "count"],
       ],
       group: ["status"],
+      raw: true,
     });
-
-    res.json(orderStats);
+    return res.json(orderStats);
   } catch (error) {
-    console.error("Error fetching order stats:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching order stats", error: error.message });
+    console.error("Error fetching order stats:", error.message);
+    return res.json([]);
   }
 };
 
@@ -94,15 +103,12 @@ exports.getQuotationStats = async (req, res) => {
         [db.sequelize.fn("COUNT", db.sequelize.col("quotation_id")), "count"],
       ],
       group: ["status"],
+      raw: true,
     });
-
-    res.json(quotationStats);
+    return res.json(quotationStats);
   } catch (error) {
-    console.error("Error fetching quotation stats:", error);
-    res.status(500).json({
-      message: "Error fetching quotation stats",
-      error: error.message,
-    });
+    console.error("Error fetching quotation stats:", error.message);
+    return res.json([]);
   }
 };
 
@@ -126,7 +132,8 @@ exports.getRevenueByMonth = async (req, res) => {
       const revenue =
         (await Order.sum("total_amount", {
           where: {
-            createdAt: { [Op.between]: [startDate, endDate] },
+            // Use underscored timestamp field as defined in the model/Sequelize config
+            created_at: { [Op.between]: [startDate, endDate] },
             status: { [Op.ne]: "cancelled" },
           },
         })) || 0;
@@ -184,7 +191,7 @@ exports.getRevenueByTimeRange = async (req, res) => {
           const revenue =
             (await Order.sum("total_amount", {
               where: {
-                createdAt: { [Op.between]: [startDate, endDate] },
+                created_at: { [Op.between]: [startDate, endDate] },
                 status: { [Op.ne]: "cancelled" },
               },
             })) || 0;
@@ -221,7 +228,7 @@ exports.getRevenueByTimeRange = async (req, res) => {
           const revenue =
             (await Order.sum("total_amount", {
               where: {
-                createdAt: { [Op.between]: [startDate, endDate] },
+                created_at: { [Op.between]: [startDate, endDate] },
                 status: { [Op.ne]: "cancelled" },
               },
             })) || 0;
@@ -245,13 +252,19 @@ exports.getRevenueByTimeRange = async (req, res) => {
 
           const yearLabel = startDate.getFullYear().toString();
 
-          const revenue =
-            (await Order.sum("total_amount", {
-              where: {
-                createdAt: { [Op.between]: [startDate, endDate] },
-                status: { [Op.ne]: "cancelled" },
-              },
-            })) || 0;
+          let revenue = 0;
+          try {
+            revenue =
+              (await Order.sum("total_amount", {
+                where: {
+                  created_at: { [Op.between]: [startDate, endDate] },
+                  status: { [Op.ne]: "cancelled" },
+                },
+              })) || 0;
+          } catch (e) {
+            console.error("Revenue yearly sum failed:", e.message);
+            revenue = 0;
+          }
 
           revenueData.push({
             label: yearLabel,
@@ -276,9 +289,15 @@ exports.getRevenueByTimeRange = async (req, res) => {
       totalRevenue: revenueData.reduce((sum, item) => sum + item.revenue, 0),
     });
   } catch (error) {
-    console.error("Error fetching revenue data:", error);
-    res
-      .status(500)
-      .json({ message: "Error fetching revenue data", error: error.message });
+    console.error("Error fetching revenue data:", error.message);
+    // Return a safe default payload so the dashboard renders
+    return res.json({
+      timeRange: req.query.timeRange || "monthly",
+      duration: parseInt(req.query.duration || "6"),
+      title: "Revenue",
+      durationText: "",
+      revenueData: [],
+      totalRevenue: 0,
+    });
   }
 };

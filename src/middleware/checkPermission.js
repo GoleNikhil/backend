@@ -47,7 +47,10 @@ const checkPermission = (requiredPermission) => {
       }
 
       // Check if user's role has the required permission
-      const hasPermission = user.Role.Permissions.some(
+      const rolePermissions = Array.isArray(user.Role.Permissions)
+        ? user.Role.Permissions
+        : [];
+      const hasPermission = rolePermissions.some(
         (permission) => permission.permissions_name === requiredPermission
       );
 

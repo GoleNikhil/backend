@@ -1,5 +1,7 @@
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
+const os = require("os");
 const logger = require("../utils/logger");
 
 // Define allowed file types
@@ -10,11 +12,29 @@ const allowedPdfTypes = ["application/pdf"];
 const IMAGE_MAX_SIZE = 2 * 1024 * 1024; // 2MB for images
 const PDF_MAX_SIZE = 5 * 1024 * 1024; // 5MB for PDFs
 
+// Resolve a safe temporary directory for uploads
+const defaultTmpDir = path.join(__dirname, "../../uploads/tmp");
+const systemTmpDir = os.tmpdir();
+
+function ensureDirectoryExists(dirPath) {
+  try {
+    if (!fs.existsSync(dirPath)) {
+      fs.mkdirSync(dirPath, { recursive: true });
+    }
+  } catch (err) {
+    logger.error("Failed to ensure upload temp directory:", err);
+  }
+}
+
+ensureDirectoryExists(defaultTmpDir);
+
 // Define storage
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     logger.info(`Storing file: ${file.originalname} in temporary storage`);
-    cb(null, "/temp"); // Temporary storage
+    // Prefer project uploads/tmp; fallback to OS temp dir
+    const targetDir = fs.existsSync(defaultTmpDir) ? defaultTmpDir : systemTmpDir;
+    cb(null, targetDir);
   },
   filename: function (req, file, cb) {
     logger.info(`Saving file with original name: ${file.originalname}`);
