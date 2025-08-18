@@ -11,12 +11,14 @@ const distributorModel = require("../models/distributorModel");
 exports.createProduct = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-
-    // Find distributor and validate
-    const distributor =await db.distributors.findOne({
-      where: { user_id: user_id },
-      attributes: ["distributor_id"],
-    });
+    const role_id = req.user.role_id;
+    const ALLOWED_ROLES = [2, 3, 5]; // consultant, distributor, superadmin
+    if (!ALLOWED_ROLES.includes(role_id)) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to create products"
+      });
+    }
       // Handle file uploads first
     let imageUrl = null, imagePublicId = null;
     let datasheetUrl = null, datasheetPublicId = null;
@@ -73,7 +75,7 @@ exports.createProduct = async (req, res) => {
 
     const result = await productService.createProduct(
       productData,
-      distributor.distributor_id,
+      user_id,
       req.body.competitivePrice
     );
 
@@ -146,12 +148,14 @@ exports.updateProduct = async (req, res) => {
   try {
     const productId = req.params.id;
     const user_id = req.user.user_id;
-
-    // Find distributor
-    const distributor = await db.distributors.findOne({
-      where: { user_id : user_id },
-      attributes: ["distributor_id"],
-    });
+    const role_id = req.user.role_id;
+    const ALLOWED_ROLES = [2, 3, 5];
+    if (!ALLOWED_ROLES.includes(role_id)) {
+      return res.status(403).json({
+        success: false,
+        message: "You don't have permission to update products"
+      });
+    }
 
     // Check if product exists
     const existingProduct = await db.products.findByPk(productId);
@@ -183,7 +187,7 @@ exports.updateProduct = async (req, res) => {
       productId,
       req.body,
       req.files,
-      distributor.distributor_id
+      user_id
     );
 
     res.status(200).json({
@@ -223,14 +227,12 @@ exports.deleteProduct = async (req, res) => {
   logger.info("deleteProduct function called");
   try {
     const user_id = req.user.user_id;
-    const distributor = await db.distributors.findOne({
-      where: { user_id }
-    });
-
-    if (!distributor) {
+    const role_id = req.user.role_id;
+    const ALLOWED_ROLES = [2, 3, 5];
+    if (!ALLOWED_ROLES.includes(role_id)) {
       return res.status(403).json({
         success: false,
-        message: "Only distributors can delete products"
+        message: "You don't have permission to delete products"
       });
     }
 
@@ -238,7 +240,7 @@ exports.deleteProduct = async (req, res) => {
     const hasCompetitivePrice = await db.competitivePrices.findOne({
       where: {
         product_id: req.params.id,
-        distributor_id: distributor.distributor_id
+        seller_id: user_id
       }
     });
 
@@ -251,7 +253,7 @@ exports.deleteProduct = async (req, res) => {
 
     const result = await productService.deleteProduct(
       req.params.id,
-      distributor.distributor_id
+      user_id
     );
 
     res.status(200).json({
@@ -320,16 +322,20 @@ exports.searchProduct = async (req, res) => {
 exports.addCompetitivePrice = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-    const distributor = await db.distributors.findOne({
-      where: { user_id }
-    });
+    const role_id = req.user.role_id;
+    const ALLOWED_ROLES = [2, 3, 5];
+    if (!ALLOWED_ROLES.includes(role_id)) {
+      return res.status(403).json({
+        message: "You don't have permission to add competitive price",
+      });
+    }
 
     const product_id = req.params.product_id; 
     const {  price } = req.body;
 
     const competitivePrice = await productService.addCompetitivePrice(
       product_id,
-      distributor.distributor_id,
+      user_id,
       price
     );
 
@@ -352,26 +358,14 @@ exports.addCompetitivePrice = async (req, res) => {
 exports.getProductsByDistributorId = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-    
-    // First find the distributor
-    const distributor = await db.distributors.findOne({
-      where: { user_id }
-    });
 
-    if (!distributor) {
-      return res.status(403).json({
-        success: false,
-        message: "Distributor not found"
-      });
-    }
-
-    const products = await productService.getProductsByDistributorId(distributor.distributor_id);
+    const products = await productService.getProductsBySellerUserId(user_id);
 
     res.status(200).json({
       success: true,
       message: "Products retrieved successfully",
       data: {
-        distributor_id: distributor.distributor_id,
+        seller_id: user_id,
         total_products: products.length,
         products
       }
@@ -380,7 +374,7 @@ exports.getProductsByDistributorId = async (req, res) => {
   } catch (error) {
     logger.error("Error fetching distributor products:", error);
     
-    if (error.message === 'No products found for this distributor') {
+    if (error.message === 'No products found for this seller') {
       return res.status(404).json({
         success: false,
         message: error.message
@@ -389,7 +383,7 @@ exports.getProductsByDistributorId = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Error retrieving distributor products",
+      message: "Error retrieving seller products",
       error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
     });
   }
@@ -446,12 +440,10 @@ exports.getAllCompetitivePricesByProductID = async (req, res) => {
         },
         total_distributors: result.CompetitivePrices?.length || 0,
         competitive_prices: result.CompetitivePrices?.map(cp => ({
-          distributor_id: cp.Distributor?.distributor_id,
-          distributor_name: `${cp.Distributor?.User?.name}`,
-          email: cp.Distributor?.User?.email,
-          mobile_no: cp.Distributor?.User?.mobile_no,
-          company_size: cp.Distributor?.company_size,
-          gst_type: cp.Distributor?.gst_type,
+          seller_id: cp.seller_id,
+          seller_name: cp.User?.name,
+          email: cp.User?.email,
+          mobile_no: cp.User?.mobile_no,
           price: cp.price,
           last_updated: cp.updatedAt
         })).sort((a, b) => a.price - b.price)
