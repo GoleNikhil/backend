@@ -249,14 +249,4 @@ db.products.hasMany(db.quotationItems, {
 db.notifications.belongsTo(db.users, { foreignKey: "user_id" });
 db.users.hasMany(db.notifications, { foreignKey: "user_id" });
 
-// PostgreSQL doesn't need FOREIGN_KEY_CHECKS, so we can simplify this
-db.sequelize
-  .sync({ force: false }) // Set to true to drop and recreate all tables
-  .then(() => {
-    console.log("Database synchronized successfully.");
-  })
-  .catch((err) => {
-    console.error("Error synchronizing database:", err);
-  });
-
 module.exports = db;
