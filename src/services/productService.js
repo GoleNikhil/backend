@@ -338,6 +338,7 @@ exports.getProductsBySellerId = async (seller_id) => {
       include: [
         {
           model: db.competitivePrices,
+          as: "CompetitivePrices",
           required: true, // This ensures only products with competitive prices are returned
           where: { seller_id },
           include: [
@@ -350,16 +351,14 @@ exports.getProductsBySellerId = async (seller_id) => {
         },
         {
           model: db.categories,
+          as: "Category",
           attributes: ["category_id", "category_name"],
         },
       ],
       order: [["createdAt", "DESC"]], // Optional: Order by creation date
     });
 
-    if (!products || products.length === 0) {
-      throw new Error("No products found for this seller");
-    }
-
+    // Return empty array when no products; let controller handle zero state gracefully
     logger.info(`Retrieved ${products.length} products for seller ${seller_id}`);
     return products;
   } catch (error) {

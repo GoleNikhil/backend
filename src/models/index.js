@@ -90,14 +90,16 @@ db.subscriptions.belongsTo(db.users, { foreignKey: "user_id" });
 db.users.hasOne(db.subscriptions, { foreignKey: "user_id" });
 
 // Product associations
-db.products.belongsTo(db.categories, { foreignKey: "category_id" });
-db.categories.hasMany(db.products, { foreignKey: "category_id" });
+db.products.belongsTo(db.categories, { foreignKey: "category_id", as: "Category" });
+db.categories.hasMany(db.products, { foreignKey: "category_id", as: "Products" });
 
 db.products.hasMany(db.competitivePrices, {
   foreignKey: "product_id",
+  as: "CompetitivePrices",
 });
 db.competitivePrices.belongsTo(db.products, {
   foreignKey: "product_id",
+  as: "Product",
 });
 
 // Seller association is generalized to users via seller_id

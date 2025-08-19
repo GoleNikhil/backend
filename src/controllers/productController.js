@@ -334,18 +334,20 @@ exports.getProductsBySellerId = async (req, res) => {
       message: "Products retrieved successfully",
       data: {
         seller_id: user_id,
-        total_products: products.length,
-        products
+        total_products: Array.isArray(products) ? products.length : 0,
+        products: Array.isArray(products) ? products : []
       }
     });
 
   } catch (error) {
     logger.error("Error fetching distributor products:", error);
     
+    // Gracefully return empty list on not found or empty
     if (error.message === 'No products found for this seller') {
-      return res.status(404).json({
-        success: false,
-        message: error.message
+      return res.status(200).json({
+        success: true,
+        message: "Products retrieved successfully",
+        data: { seller_id: user_id, total_products: 0, products: [] }
       });
     }
 
