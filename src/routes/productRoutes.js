@@ -11,7 +11,7 @@ const {
   updateProduct,
   deleteProduct,
   searchProduct,
-  getProductsByDistributorId, // Add this
+  getProductsBySellerId, // generalized
   getAllProductCategoryWise, // Add this
   getAllCompetitivePricesByProductID, // Add this
 } = require("../controllers/productController");
@@ -25,8 +25,10 @@ router.post("/create", authenticate, upload, createProduct);
 // Add competitive price to existing product
 router.post("/competitive-price/:product_id", authenticate, addCompetitivePrice);
 
-// Get products by distributor ID (place before /:id route to avoid conflicts)
-router.get("/distributor/my-products", authenticate, getProductsByDistributorId);
+// Get products by seller (current user)
+router.get("/seller/my-products", authenticate, getProductsBySellerId);
+// Backward-compatible distributor endpoint
+router.get("/distributor/my-products", authenticate, getProductsBySellerId);
 
 // Get all products by category (public route - no authentication needed)
 router.get("/category", getAllProductCategoryWise);

@@ -7,11 +7,11 @@ const competitivePriceSchema = Joi.object({
     "number.positive": "Product ID must be a positive number",
     "any.required": "Product ID is required",
   }),
-  distributor_id: Joi.number().integer().positive().required().messages({
-    "number.base": "Distributor ID must be a number",
-    "number.integer": "Distributor ID must be an integer",
-    "number.positive": "Distributor ID must be a positive number",
-    "any.required": "Distributor ID is required",
+  seller_id: Joi.number().integer().positive().required().messages({
+    "number.base": "Seller ID must be a number",
+    "number.integer": "Seller ID must be an integer",
+    "number.positive": "Seller ID must be a positive number",
+    "any.required": "Seller ID is required",
   }),
   price: Joi.number().required().messages({
     "number.base": "Price must be a number",
