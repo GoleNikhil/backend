@@ -23,7 +23,7 @@ exports.searchProduct = async (category_id, oem_name, product_name) => {
 
 exports.createProduct = async (
   productData,
-  distributor_id,
+  seller_id,
   competitivePrice
 ) => {
   try {
@@ -49,7 +49,7 @@ exports.createProduct = async (
       const cp = await db.competitivePrices.create(
         {
           product_id: product.product_id,
-          distributor_id,
+          seller_id,
           price: parseFloat(competitivePrice),
         },
         { transaction: t }
@@ -63,7 +63,7 @@ exports.createProduct = async (
 
     logger.info("Product created successfully", {
       product_id: result.product.product_id,
-      distributor_id,
+      seller_id,
     });
 
     return result;
@@ -71,29 +71,29 @@ exports.createProduct = async (
     logger.error("Error creating product:", {
       error: error.message,
       productData,
-      distributor_id,
+      seller_id,
     });
     throw error;
   }
 };
 
-exports.addCompetitivePrice = async (product_id, distributor_id, price) => {
+exports.addCompetitivePrice = async (product_id, seller_id, price) => {
   try {
     // Check if price already exists for this distributor
     const existingPrice = await db.competitivePrices.findOne({
       where: {
         product_id,
-        distributor_id,
+        seller_id,
       },
     });
 
     if (existingPrice) {
-      throw new Error("Competitive price already exists for this distributor");
+      throw new Error("Competitive price already exists for this seller");
     }
 
     const cp = await db.competitivePrices.create({
       product_id,
-      distributor_id,
+      seller_id,
       price,
     });
 
@@ -112,8 +112,9 @@ exports.getAllProducts = async () => {
           model: db.competitivePrices,
           include: [
             {
-              model: db.distributors,
-              attributes: ["distributor_id", "user_id"],
+              model: db.users,
+              as: "Seller",
+              attributes: ["user_id", "name", "email"],
             },
           ],
         },
@@ -139,8 +140,9 @@ exports.getProductById = async (productId) => {
           model: db.competitivePrices,
           include: [
             {
-              model: db.distributors,
-              attributes: ["distributor_id", "user_id"],
+              model: db.users,
+              as: "Seller",
+              attributes: ["user_id", "name", "email"],
             },
           ],
         },
@@ -162,7 +164,7 @@ exports.getProductById = async (productId) => {
   }
 };
 
-exports.updateProduct = async (productId, updateData, files, distributorId) => {
+exports.updateProduct = async (productId, updateData, files, sellerId) => {
   const transaction = await db.sequelize.transaction();
 
   try {
@@ -175,9 +177,9 @@ exports.updateProduct = async (productId, updateData, files, distributorId) => {
           as: "CompetitivePrices",
           include: [
             {
-              model: db.distributors,
-              as: "Distributor",
-              attributes: ["distributor_id", "user_id"],
+              model: db.users,
+              as: "Seller",
+              attributes: ["user_id", "name", "email"],
             },
           ],
         },
@@ -190,12 +192,10 @@ exports.updateProduct = async (productId, updateData, files, distributorId) => {
       throw new Error("Product not found");
     }
 
-    // Check if distributor has a competitive price for this product
+    // Check if seller has a competitive price for this product
     const hasCompetitivePrice =
       product.CompetitivePrices &&
-      product.CompetitivePrices.some(
-        (cp) => cp.distributor_id === distributorId
-      );
+      product.CompetitivePrices.some((cp) => cp.seller_id === sellerId);
 
     if (!hasCompetitivePrice) {
       await transaction.rollback();
@@ -204,14 +204,12 @@ exports.updateProduct = async (productId, updateData, files, distributorId) => {
       );
     }
 
-    // Check if other distributors have competitive prices
-    const hasOtherDistributors =
+    // Check if other sellers have competitive prices
+    const hasOtherSellers =
       product.CompetitivePrices &&
-      product.CompetitivePrices.some(
-        (cp) => cp.distributor_id !== distributorId
-      );
+      product.CompetitivePrices.some((cp) => cp.seller_id !== sellerId);
 
-    if (hasOtherDistributors) {
+    if (hasOtherSellers) {
       const restrictedFields = ["product_name", "oem_name", "category_id"];
       const attemptedRestrictedUpdate = restrictedFields.some(
         (field) => field in updateData
@@ -220,7 +218,7 @@ exports.updateProduct = async (productId, updateData, files, distributorId) => {
       if (attemptedRestrictedUpdate) {
         await transaction.rollback();
         throw new Error(
-          "Cannot update core product details when other distributors have competitive prices"
+          "Cannot update core product details when other sellers have competitive prices"
         );
       }
     }
@@ -289,7 +287,7 @@ exports.updateProduct = async (productId, updateData, files, distributorId) => {
       const cp = await db.competitivePrices.findOne({
         where: {
           product_id: productId,
-          distributor_id: distributorId,
+          seller_id: sellerId,
         },
         transaction,
       });
@@ -309,9 +307,9 @@ exports.updateProduct = async (productId, updateData, files, distributorId) => {
           as: "CompetitivePrices",
           include: [
             {
-              model: db.distributors,
-              as: "Distributor",
-              attributes: ["distributor_id", "user_id"],
+              model: db.users,
+              as: "Seller",
+              attributes: ["user_id", "name", "email"],
             },
           ],
         },
@@ -334,23 +332,19 @@ exports.updateProduct = async (productId, updateData, files, distributorId) => {
   }
 };
 
-exports.getProductsByDistributorId = async (distributor_id) => {
+exports.getProductsBySellerId = async (seller_id) => {
   try {
     const products = await db.products.findAll({
       include: [
         {
           model: db.competitivePrices,
           required: true, // This ensures only products with competitive prices are returned
-          where: { distributor_id },
+          where: { seller_id },
           include: [
             {
-              model: db.distributors,
-              attributes: [
-                "distributor_id",
-                "user_id",
-                "company_size",
-                "gst_type",
-              ],
+              model: db.users,
+              as: "Seller",
+              attributes: ["user_id", "name", "email"],
             },
           ],
         },
@@ -363,23 +357,18 @@ exports.getProductsByDistributorId = async (distributor_id) => {
     });
 
     if (!products || products.length === 0) {
-      throw new Error("No products found for this distributor");
+      throw new Error("No products found for this seller");
     }
 
-    logger.info(
-      `Retrieved ${products.length} products for distributor ${distributor_id}`
-    );
+    logger.info(`Retrieved ${products.length} products for seller ${seller_id}`);
     return products;
   } catch (error) {
-    logger.error(
-      `Error fetching products for distributor ${distributor_id}:`,
-      error
-    );
+    logger.error(`Error fetching products for seller ${seller_id}:`, error);
     throw error;
   }
 };
 
-exports.deleteProduct = async (productId, distributorId) => {
+exports.deleteProduct = async (productId, sellerId) => {
   const transaction = await db.sequelize.transaction();
 
   try {
@@ -392,8 +381,9 @@ exports.deleteProduct = async (productId, distributorId) => {
             model: db.competitivePrices,
             include: [
               {
-                model: db.distributors,
-                attributes: ["distributor_id"],
+                model: db.users,
+                as: "Seller",
+                attributes: ["user_id", "name", "email"],
               },
             ],
           },
@@ -415,7 +405,7 @@ exports.deleteProduct = async (productId, distributorId) => {
         {
           where: {
             product_id: productId,
-            distributor_id: distributorId,
+            seller_id: sellerId,
           },
         },
         { transaction }
@@ -496,21 +486,9 @@ exports.getAllCompetitivePricesByProductID = async (product_id) => {
           as: "CompetitivePrices",
           include: [
             {
-              model: db.distributors,
-              as: "Distributor",
-              attributes: [
-                "distributor_id",
-                "user_id",
-                "gst_type",
-                "company_size",
-              ],
-              include: [
-                {
-                  model: db.users,
-                  as: "User",
-                  attributes: ["name", "email", "mobile_no"],
-                },
-              ],
+              model: db.users,
+              as: "Seller",
+              attributes: ["user_id", "name", "email", "mobile_no"],
             },
           ],
         },

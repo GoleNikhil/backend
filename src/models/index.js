@@ -100,9 +100,11 @@ db.competitivePrices.belongsTo(db.products, {
   foreignKey: "product_id",
 });
 
-db.distributors.hasMany(db.competitivePrices, { foreignKey: "distributor_id" });
-db.competitivePrices.belongsTo(db.distributors, {
-  foreignKey: "distributor_id",
+// Seller association is generalized to users via seller_id
+db.users.hasMany(db.competitivePrices, { foreignKey: "seller_id", as: "SellerCompetitivePrices" });
+db.competitivePrices.belongsTo(db.users, {
+  foreignKey: "seller_id",
+  as: "Seller",
 });
 
 // Distributor associations

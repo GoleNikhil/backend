@@ -11,12 +11,6 @@ const distributorModel = require("../models/distributorModel");
 exports.createProduct = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-
-    // Find distributor and validate
-    const distributor =await db.distributors.findOne({
-      where: { user_id: user_id },
-      attributes: ["distributor_id"],
-    });
       // Handle file uploads first
     let imageUrl = null, imagePublicId = null;
     let datasheetUrl = null, datasheetPublicId = null;
@@ -73,7 +67,7 @@ exports.createProduct = async (req, res) => {
 
     const result = await productService.createProduct(
       productData,
-      distributor.distributor_id,
+      user_id,
       req.body.competitivePrice
     );
 
@@ -147,12 +141,6 @@ exports.updateProduct = async (req, res) => {
     const productId = req.params.id;
     const user_id = req.user.user_id;
 
-    // Find distributor
-    const distributor = await db.distributors.findOne({
-      where: { user_id : user_id },
-      attributes: ["distributor_id"],
-    });
-
     // Check if product exists
     const existingProduct = await db.products.findByPk(productId);
     if (!existingProduct) {
@@ -183,7 +171,7 @@ exports.updateProduct = async (req, res) => {
       productId,
       req.body,
       req.files,
-      distributor.distributor_id
+      user_id
     );
 
     res.status(200).json({
@@ -223,22 +211,12 @@ exports.deleteProduct = async (req, res) => {
   logger.info("deleteProduct function called");
   try {
     const user_id = req.user.user_id;
-    const distributor = await db.distributors.findOne({
-      where: { user_id }
-    });
-
-    if (!distributor) {
-      return res.status(403).json({
-        success: false,
-        message: "Only distributors can delete products"
-      });
-    }
 
     // Check if the distributor has a competitive price for this product
     const hasCompetitivePrice = await db.competitivePrices.findOne({
       where: {
         product_id: req.params.id,
-        distributor_id: distributor.distributor_id
+        seller_id: user_id
       }
     });
 
@@ -251,7 +229,7 @@ exports.deleteProduct = async (req, res) => {
 
     const result = await productService.deleteProduct(
       req.params.id,
-      distributor.distributor_id
+      user_id
     );
 
     res.status(200).json({
@@ -320,16 +298,12 @@ exports.searchProduct = async (req, res) => {
 exports.addCompetitivePrice = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-    const distributor = await db.distributors.findOne({
-      where: { user_id }
-    });
-
     const product_id = req.params.product_id; 
     const {  price } = req.body;
 
     const competitivePrice = await productService.addCompetitivePrice(
       product_id,
-      distributor.distributor_id,
+      user_id,
       price
     );
 
@@ -347,31 +321,19 @@ exports.addCompetitivePrice = async (req, res) => {
   }
 };
 
-// Get all products by distributor
+// Get all products by seller (current user)
 
-exports.getProductsByDistributorId = async (req, res) => {
+exports.getProductsBySellerId = async (req, res) => {
   try {
     const user_id = req.user.user_id;
-    
-    // First find the distributor
-    const distributor = await db.distributors.findOne({
-      where: { user_id }
-    });
 
-    if (!distributor) {
-      return res.status(403).json({
-        success: false,
-        message: "Distributor not found"
-      });
-    }
-
-    const products = await productService.getProductsByDistributorId(distributor.distributor_id);
+    const products = await productService.getProductsBySellerId(user_id);
 
     res.status(200).json({
       success: true,
       message: "Products retrieved successfully",
       data: {
-        distributor_id: distributor.distributor_id,
+        seller_id: user_id,
         total_products: products.length,
         products
       }
@@ -380,7 +342,7 @@ exports.getProductsByDistributorId = async (req, res) => {
   } catch (error) {
     logger.error("Error fetching distributor products:", error);
     
-    if (error.message === 'No products found for this distributor') {
+    if (error.message === 'No products found for this seller') {
       return res.status(404).json({
         success: false,
         message: error.message
@@ -389,7 +351,7 @@ exports.getProductsByDistributorId = async (req, res) => {
 
     res.status(500).json({
       success: false,
-      message: "Error retrieving distributor products",
+      message: "Error retrieving seller products",
       error: process.env.NODE_ENV === 'production' ? 'Internal server error' : error.message
     });
   }
@@ -444,14 +406,12 @@ exports.getAllCompetitivePricesByProductID = async (req, res) => {
           category: result.Category?.name,
           part_no: result.part_no
         },
-        total_distributors: result.CompetitivePrices?.length || 0,
+        total_sellers: result.CompetitivePrices?.length || 0,
         competitive_prices: result.CompetitivePrices?.map(cp => ({
-          distributor_id: cp.Distributor?.distributor_id,
-          distributor_name: `${cp.Distributor?.User?.name}`,
-          email: cp.Distributor?.User?.email,
-          mobile_no: cp.Distributor?.User?.mobile_no,
-          company_size: cp.Distributor?.company_size,
-          gst_type: cp.Distributor?.gst_type,
+          seller_id: cp.Seller?.user_id,
+          seller_name: cp.Seller?.name,
+          email: cp.Seller?.email,
+          mobile_no: cp.Seller?.mobile_no,
           price: cp.price,
           last_updated: cp.updatedAt
         })).sort((a, b) => a.price - b.price)
